@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# 🔥 нормальный текст (обучение)
+# 📚 ДАННЫЕ (расширь сколько хочешь)
 text = """
 привет друг как ты
 привет друг как дела
@@ -30,12 +30,14 @@ ix_to_word = {i: w for w, i in word_to_ix.items()}
 
 CONTEXT = 2
 
+# 📦 создаём обучающие пары
 data = []
 for i in range(len(tokens) - CONTEXT):
     ctx = tokens[i:i+CONTEXT]
     tgt = tokens[i+CONTEXT]
     data.append((ctx, tgt))
 
+# 🧠 модель
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
@@ -48,7 +50,7 @@ class Model(nn.Module):
 
 model = Model()
 
-# 🔥 ОБУЧЕНИЕ (ВАЖНО!)
+# 🔥 обучение
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 loss_fn = nn.CrossEntropyLoss()
 
@@ -65,23 +67,30 @@ for _ in range(300):
         loss.backward()
         optimizer.step()
 
-# 🔥 ГЕНЕРАЦИЯ (ИСПРАВЛЕНО)
-def generate(text):
+# 🚀 ГЕНЕРАЦИЯ МНОГИХ СЛОВ
+def generate(text, length=8):
     words_input = text.split()
 
     if len(words_input) < CONTEXT:
-        return "Напиши хотя бы 2 слова"
+        return "Напиши минимум 2 слова"
 
-    ctx = words_input[-CONTEXT:]
+    result = words_input[:]
 
-    # 🔥 заменяем неизвестные слова на случайные известные
-    ctx = [w if w in word_to_ix else list(word_to_ix.keys())[0] for w in ctx]
+    for _ in range(length):
+        ctx = result[-CONTEXT:]
 
-    ctx_idx = torch.tensor([word_to_ix[w] for w in ctx])
+        # защита от ошибок
+        if any(w not in word_to_ix for w in ctx):
+            break
 
-    out = model(ctx_idx)
-    probs = torch.softmax(out, dim=1)
+        ctx_idx = torch.tensor([word_to_ix[w] for w in ctx])
 
-    pred = torch.multinomial(probs, 1).item()
+        out = model(ctx_idx)
+        probs = torch.softmax(out, dim=1)
 
-    return ix_to_word[pred]
+        pred = torch.multinomial(probs, 1).item()
+        next_word = ix_to_word[pred]
+
+        result.append(next_word)
+
+    return " ".join(result)

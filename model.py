@@ -62,6 +62,10 @@ def generate(text):
         return "Напиши хотя бы 2 слова"
 
     ctx = words_input[-CONTEXT:]
+
+    # 🔥 заменяем неизвестные слова на случайные известные
+    ctx = [w if w in word_to_ix else list(word_to_ix.keys())[0] for w in ctx]
+
     ctx_idx = torch.tensor([word_to_ix[w] for w in ctx])
 
     out = model(ctx_idx)

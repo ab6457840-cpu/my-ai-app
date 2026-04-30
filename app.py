@@ -1,26 +1,19 @@
 import streamlit as st
+from model import generate
 
-st.set_page_config(page_title="Мой AI", page_icon="🤖")
-
-st.title("🤖 Мой облачный чат")
+st.title("🤖 Моя нейросеть")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-def fake_model(text):
-    return "Ты написал: " + text
-
-user_input = st.text_input("Напиши сообщение:")
+user = st.text_input("Ты:")
 
 if st.button("Отправить"):
-    if user_input:
-        answer = fake_model(user_input)
+    if user:
+        answer = generate(user)
 
-        st.session_state.chat.append(("Ты", user_input))
+        st.session_state.chat.append(("Ты", user))
         st.session_state.chat.append(("Бот", answer))
 
-for role, msg in st.session_state.chat:
-    if role == "Ты":
-        st.markdown(f"**🧑 Ты:** {msg}")
-    else:
-        st.markdown(f"**🤖 Бот:** {msg}")
+for r, m in st.session_state.chat:
+    st.write(r + ":", m)

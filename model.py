@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# 📂 данные
+# 📂 читаем данные прямо в Streamlit Cloud
 with open("data.txt", "r", encoding="utf-8") as f:
     text = f.read().lower()
 
@@ -12,55 +12,45 @@ words = list(set(tokens))
 word_to_ix = {w: i for i, w in enumerate(words)}
 ix_to_word = {i: w for w, i in word_to_ix.items()}
 
-VOCAB_SIZE = len(words)
 SEQ_LEN = 6
-EMB = 128
 
-# 📦 dataset
 data = []
 for i in range(len(tokens) - SEQ_LEN):
-    x = tokens[i:i+SEQ_LEN]
-    y = tokens[i+SEQ_LEN]
-    data.append((x, y))
+    seq = tokens[i:i+SEQ_LEN]
+    tgt = tokens[i+SEQ_LEN]
+    data.append((seq, tgt))
 
-# 🧠 Transformer модель
+# 🧠 Transformer (упрощённый)
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
-
-        self.emb = nn.Embedding(VOCAB_SIZE, EMB)
-
-        self.attn = nn.MultiheadAttention(EMB, num_heads=4, batch_first=True)
-
+        self.emb = nn.Embedding(len(words), 128)
+        self.attn = nn.MultiheadAttention(128, 4, batch_first=True)
         self.ff = nn.Sequential(
-            nn.Linear(EMB, 256),
+            nn.Linear(128, 256),
             nn.ReLU(),
-            nn.Linear(256, VOCAB_SIZE)
+            nn.Linear(256, len(words))
         )
 
     def forward(self, x):
         x = self.emb(x)
-
-        attn_out, _ = self.attn(x, x, x)
-
-        out = self.ff(attn_out[:, -1, :])
-
-        return out
+        x, _ = self.attn(x, x, x)
+        return self.ff(x[:, -1])
 
 model = Model()
 
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss()
 
-# 🔥 обучение
-for epoch in range(5):
+# 🔥 ОБУЧЕНИЕ ПРИ ЗАПУСКЕ (Streamlit Cloud)
+for epoch in range(3):  # мало эпох = быстрее запуск
     total = 0
 
-    for x, y in data:
+    for seq, tgt in data:
         model.zero_grad()
 
-        x = torch.tensor([[word_to_ix[w] for w in x]])
-        y = torch.tensor([word_to_ix[y]])
+        x = torch.tensor([[word_to_ix[w] for w in seq]])
+        y = torch.tensor([word_to_ix[tgt]])
 
         out = model(x)
         loss = loss_fn(out, y)
@@ -73,7 +63,7 @@ for epoch in range(5):
     print("epoch", epoch, "loss", total)
 
 # 🚀 генерация
-def generate(text, length=15):
+def generate(text, length=12):
     words_input = text.lower().split()
 
     for _ in range(length):
@@ -86,8 +76,7 @@ def generate(text, length=15):
 
         out = model(x)
 
-        logits = out / 1.2
-        probs = torch.softmax(logits, dim=1)
+        probs = torch.softmax(out / 1.3, dim=1)
 
         pred = torch.multinomial(probs, 1).item()
 

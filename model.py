@@ -2,13 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-text = """
-привет друг как ты сегодня
-привет как дела у тебя
-как ты поживаешь сегодня
-что ты делаешь сейчас
-у меня всё хорошо
-"""
+# 📂 ЧТЕНИЕ ДАННЫХ ИЗ ФАЙЛА
+with open("data.txt", "r", encoding="utf-8") as f:
+    text = f.read().lower()
 
 tokens = text.split()
 words = list(set(tokens))
@@ -16,36 +12,37 @@ words = list(set(tokens))
 word_to_ix = {w: i for i, w in enumerate(words)}
 ix_to_word = {i: w for w, i in word_to_ix.items()}
 
-# 🔥 последовательности
-seq_len = 3
+SEQ_LEN = 4
 
+# 📦 подготовка данных
 data = []
-for i in range(len(tokens) - seq_len):
-    seq = tokens[i:i+seq_len]
-    target = tokens[i+seq_len]
+for i in range(len(tokens) - SEQ_LEN):
+    seq = tokens[i:i+SEQ_LEN]
+    target = tokens[i+SEQ_LEN]
     data.append((seq, target))
 
-# 🧠 LSTM модель (ВАЖНО)
-class LSTMModel(nn.Module):
+# 🧠 модель
+class Model(nn.Module):
     def __init__(self):
         super().__init__()
-        self.emb = nn.Embedding(len(words), 32)
-        self.lstm = nn.LSTM(32, 64, batch_first=True)
-        self.fc = nn.Linear(64, len(words))
+        self.emb = nn.Embedding(len(words), 64)
+        self.lstm = nn.LSTM(64, 128, batch_first=True)
+        self.fc = nn.Linear(128, len(words))
 
     def forward(self, x):
         x = self.emb(x)
         out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])
-        return out
+        return self.fc(out[:, -1, :])
 
-model = LSTMModel()
+model = Model()
 
 optimizer = optim.Adam(model.parameters(), lr=0.01)
 loss_fn = nn.CrossEntropyLoss()
 
-# 🔥 обучение
-for _ in range(300):
+# 🔥 ОБУЧЕНИЕ
+for epoch in range(10):  # можно увеличить
+    total_loss = 0
+
     for seq, tgt in data:
         model.zero_grad()
 
@@ -58,21 +55,35 @@ for _ in range(300):
         loss.backward()
         optimizer.step()
 
-# 🚀 генерация
+        total_loss += loss.item()
+
+    print("epoch", epoch, "loss", total_loss)
+
+# 🚀 ГЕНЕРАЦИЯ (убрали жёсткое повторение)
 def generate(text, length=10):
-    words_input = text.split()
+    words_input = text.lower().split()
 
     for _ in range(length):
-        if len(words_input) < seq_len:
+        if len(words_input) < SEQ_LEN:
             break
 
-        seq = words_input[-seq_len:]
+        seq = words_input[-SEQ_LEN:]
+
+        if any(w not in word_to_ix for w in seq):
+            break
+
         x = torch.tensor([[word_to_ix[w] for w in seq]])
 
         out = model(x)
-        probs = torch.softmax(out, dim=1)
+        probs = torch.softmax(out / 1.2, dim=1)
 
         pred = torch.multinomial(probs, 1).item()
-        words_input.append(ix_to_word[pred])
+        next_word = ix_to_word[pred]
+
+        # 🔥 защита от повторов
+        if next_word in words_input[-3:]:
+            continue
+
+        words_input.append(next_word)
 
     return " ".join(words_input)

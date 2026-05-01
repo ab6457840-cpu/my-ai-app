@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# 📂 ЧТЕНИЕ ДАННЫХ ИЗ ФАЙЛА
+# 📂 данные
 with open("data.txt", "r", encoding="utf-8") as f:
     text = f.read().lower()
 
@@ -12,42 +12,55 @@ words = list(set(tokens))
 word_to_ix = {w: i for i, w in enumerate(words)}
 ix_to_word = {i: w for w, i in word_to_ix.items()}
 
-SEQ_LEN = 4
+VOCAB_SIZE = len(words)
+SEQ_LEN = 6
+EMB = 128
 
-# 📦 подготовка данных
+# 📦 dataset
 data = []
 for i in range(len(tokens) - SEQ_LEN):
-    seq = tokens[i:i+SEQ_LEN]
-    target = tokens[i+SEQ_LEN]
-    data.append((seq, target))
+    x = tokens[i:i+SEQ_LEN]
+    y = tokens[i+SEQ_LEN]
+    data.append((x, y))
 
-# 🧠 модель
+# 🧠 Transformer модель
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
-        self.emb = nn.Embedding(len(words), 64)
-        self.lstm = nn.LSTM(64, 128, batch_first=True)
-        self.fc = nn.Linear(128, len(words))
+
+        self.emb = nn.Embedding(VOCAB_SIZE, EMB)
+
+        self.attn = nn.MultiheadAttention(EMB, num_heads=4, batch_first=True)
+
+        self.ff = nn.Sequential(
+            nn.Linear(EMB, 256),
+            nn.ReLU(),
+            nn.Linear(256, VOCAB_SIZE)
+        )
 
     def forward(self, x):
         x = self.emb(x)
-        out, _ = self.lstm(x)
-        return self.fc(out[:, -1, :])
+
+        attn_out, _ = self.attn(x, x, x)
+
+        out = self.ff(attn_out[:, -1, :])
+
+        return out
 
 model = Model()
 
-optimizer = optim.Adam(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 loss_fn = nn.CrossEntropyLoss()
 
-# 🔥 ОБУЧЕНИЕ
-for epoch in range(10):  # можно увеличить
-    total_loss = 0
+# 🔥 обучение
+for epoch in range(5):
+    total = 0
 
-    for seq, tgt in data:
+    for x, y in data:
         model.zero_grad()
 
-        x = torch.tensor([[word_to_ix[w] for w in seq]])
-        y = torch.tensor([word_to_ix[tgt]])
+        x = torch.tensor([[word_to_ix[w] for w in x]])
+        y = torch.tensor([word_to_ix[y]])
 
         out = model(x)
         loss = loss_fn(out, y)
@@ -55,18 +68,15 @@ for epoch in range(10):  # можно увеличить
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        total += loss.item()
 
-    print("epoch", epoch, "loss", total_loss)
+    print("epoch", epoch, "loss", total)
 
-# 🚀 ГЕНЕРАЦИЯ (убрали жёсткое повторение)
-def generate(text, length=10):
+# 🚀 генерация
+def generate(text, length=15):
     words_input = text.lower().split()
 
     for _ in range(length):
-        if len(words_input) < SEQ_LEN:
-            break
-
         seq = words_input[-SEQ_LEN:]
 
         if any(w not in word_to_ix for w in seq):
@@ -75,15 +85,12 @@ def generate(text, length=10):
         x = torch.tensor([[word_to_ix[w] for w in seq]])
 
         out = model(x)
-        probs = torch.softmax(out / 1.2, dim=1)
+
+        logits = out / 1.2
+        probs = torch.softmax(logits, dim=1)
 
         pred = torch.multinomial(probs, 1).item()
-        next_word = ix_to_word[pred]
 
-        # 🔥 защита от повторов
-        if next_word in words_input[-3:]:
-            continue
-
-        words_input.append(next_word)
+        words_input.append(ix_to_word[pred])
 
     return " ".join(words_input)

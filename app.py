@@ -1,7 +1,7 @@
 import streamlit as st
 from model import generate
 
-st.title("🤖 Моя нейросеть")
+st.title("Fimoz AI")
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
